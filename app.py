@@ -2,6 +2,7 @@ import os
 import requests
 import polyline
 import json
+import pickle  # <--- AJOUT IMPORTANT
 from flask import Flask, redirect, request, jsonify, session, render_template, url_for
 from dotenv import load_dotenv
 from datetime import datetime
@@ -29,27 +30,33 @@ SPORT_TRANSLATIONS = {
 GPS_SPORTS = list(SPORT_TRANSLATIONS.keys())
 
 # --- SYSTÈME DE CACHE À 3 NIVEAUX ---
-# 1. Cache Disque (Villes)
-CACHE_FILE = "cache_villes_gouv.json"
+# 1. Cache Disque (Villes) -> OPTIMISÉ EN PICKLE
+CACHE_FILE = "cache_villes_opti.pkl"  # <--- FICHIER RAPIDE
 MUNI_CACHE = {}
 
 # 2. Cache Données Brutes (Activités Strava par Token)
 RAW_DATA_CACHE = {}
 
 # 3. Cache Résultats Calculés (JSON prêt à l'emploi par Token + Filtres)
-# Permet le changement d'onglet INSTANTANÉ
 API_RESULT_CACHE = {}
 
+# CHARGEMENT ULTRA RAPIDE (PICKLE)
 if os.path.exists(CACHE_FILE):
     try:
-        with open(CACHE_FILE, 'r', encoding='utf-8') as f:
-            MUNI_CACHE = json.load(f)
-    except: MUNI_CACHE = {}
+        with open(CACHE_FILE, 'rb') as f:  # Mode lecture binaire 'rb'
+            MUNI_CACHE = pickle.load(f)
+        print(f"✅ Cache chargé : {len(MUNI_CACHE)} villes en mémoire.")
+    except Exception as e:
+        print(f"⚠️ Erreur chargement cache: {e}")
+        MUNI_CACHE = {}
+else:
+    print("⚠️ Aucun fichier cache trouvé. Le démarrage sera lent si on doit tout télécharger.")
 
+# Sauvegarde (optionnel, attention sur Render le disque n'est pas persistant)
 def save_muni_cache():
     try:
-        with open(CACHE_FILE, 'w', encoding='utf-8') as f:
-            json.dump(MUNI_CACHE, f, ensure_ascii=False)
+        with open(CACHE_FILE, 'wb') as f:  # Mode écriture binaire 'wb'
+            pickle.dump(MUNI_CACHE, f)
     except: pass
 
 # --- FONCTIONS UTILITAIRES ---
@@ -183,13 +190,10 @@ def get_stats_history():
     sel_sport = request.args.get('sport_type', 'all')
 
     # --- VÉRIFICATION DU CACHE DE RÉSULTAT ---
-    # On crée une clé unique pour cette demande
     cache_key = f"stats_{grid_meters}_{sel_year}_{sel_sport}"
     
-    # On initialise le cache utilisateur s'il n'existe pas
     if token not in API_RESULT_CACHE: API_RESULT_CACHE[token] = {}
     
-    # Si le résultat existe déjà, on le renvoie DIRECTEMENT (0 calculs)
     if cache_key in API_RESULT_CACHE[token]:
         print(f"🚀 Cache hit: {cache_key}")
         return jsonify(API_RESULT_CACHE[token][cache_key])
@@ -311,7 +315,7 @@ def get_activities_route():
     data["available_years"] = sorted(list(data["available_years"]), reverse=True)
     data["available_sports"] = dict(sorted(data["available_sports"].items(), key=lambda x: x[1]))
 
-    # --- VILLES (AVEC CACHE GOUV) ---
+    # --- VILLES (AVEC CACHE OPTIMISÉ) ---
     if grid_store:
         sorted_locs = sorted(grid_store.items(), key=lambda x: x[1]['cnt'], reverse=True)
         scan_points = [k for k, v in sorted_locs[:600]]
