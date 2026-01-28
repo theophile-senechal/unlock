@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>UNLOCK | Studio Story</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🏃</text></svg>">
+    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/dom-to-image/2.6.0/dom-to-image.min.js"></script>
+    
+    <style>
+        /* VARIABLES */
+        :root { 
+            --bordeaux: #6d071a; 
+            --off-white: #fdfdfb;
+            --panel-bg: #ffffff; 
+            --theme-light: #ff4d4d;
+            --theme-dark: #6d071a;
+        }
+        
+        /* LAYOUT PC PAR DÉFAUT (Flexbox) */
+        body { margin: 0; font-family: 'Inter', sans-serif; background: #f0f2f5; height: 100vh; display: flex; overflow: hidden; }
+        
+        /* ÉLÉMENTS MOBILES CACHÉS SUR PC */
+        .mobile-header, .btn-mobile-fab { display: none; }
+
+        /* --- SIDEBAR PC (Gauche) --- */
+        .sidebar {
+            width: 350px; background: var(--panel-bg); padding: 30px; 
+            display: flex; flex-direction: column; 
+            border-right: 1px solid #ddd; z-index: 10; 
+            box-shadow: 5px 0 15px rgba(0,0,0,0.05);
+            overflow-y: auto; flex-shrink: 0;
+            box-sizing: border-box;
+        }
+        
+        /* --- PREVIEW PC (Droite) --- */
+        .preview-area {
+            flex-grow: 1; 
+            display: flex; 
+            justify-content: center; 
+            align-items: center;
+            background-image: radial-gradient(#ddd 1px, transparent 1px); 
+            background-size: 20px 20px;
+            overflow: auto; 
+            padding: 20px;
+            position: relative;
+        }
+
+        /* --- UI ELEMENTS --- */
+        .header-back { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; color: #666; text-decoration: none; font-weight: 600; font-size: 0.9rem; transition: 0.2s; }
+        .header-back:hover { color: var(--bordeaux); transform: translateX(-5px); }
+
+        h1 { margin: 0 0 5px 0; font-size: 1.8rem; color: var(--bordeaux); letter-spacing: -1px; }
+        p { color: #888; font-size: 0.9rem; margin-bottom: 30px; }
+        .control-group { margin-bottom: 20px; }
+        label { display: block; font-weight: 700; margin-bottom: 8px; font-size: 0.8rem; color: #333; text-transform: uppercase; }
+        select, input { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 0.95rem; background: #f9f9f9; outline: none; box-sizing: border-box; }
+        select:focus, input:focus { border-color: var(--bordeaux); background: #fff; }
+
+        .btn-download {
+            margin-top: auto; padding: 15px; background: var(--bordeaux); color: white; border: none; 
+            border-radius: 10px; font-size: 1.1rem; font-weight: 700; cursor: pointer; transition: 0.2s;
+            display: flex; align-items: center; justify-content: center; gap: 10px;
+        }
+        .btn-download:hover { transform: translateY(-2px); box-shadow: 0 10px 20px rgba(109, 7, 26, 0.2); }
+
+        /* --- BOUTON FERMER (Caché sur PC par défaut) --- */
+        .btn-close-menu { 
+            display: none; /* CACHÉ SUR PC */
+            margin-bottom: 25px; background: #fff; border: 1px solid #eee; color: #333;
+            padding: 14px; border-radius: 12px; font-weight: 700; font-size: 0.95rem;
+            cursor: pointer; width: 100%; align-items: center; justify-content: center; gap: 10px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.03); transition: all 0.2s;
+        }
+        .btn-close-menu:active { background: #f9f9f9; transform: scale(0.98); }
+
+        /* --- CARTE STORY --- */
+        #story-card {
+            width: 450px; height: 800px;
+            background: #000; border-radius: 20px; overflow: hidden; position: relative;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.2); 
+            display: flex; flex-direction: column;
+            flex-shrink: 0;
+            transform-origin: center center;
+            transition: transform 0.3s ease;
+        }
+
+        #map { width: 100%; height: 100%; z-index: 1; background: transparent; cursor: move; }
+        
+        .overlay-ui {
+            position: absolute; inset: 0; z-index: 10; pointer-events: none;
+            display: flex; flex-direction: column; justify-content: space-between; padding: 40px;
+            background: linear-gradient(to bottom, transparent 60%, rgba(0,0,0,0.8) 100%);
+        }
+        .top-brand { text-align: center; color: white; font-weight: 900; font-size: 1.5rem; letter-spacing: 2px; opacity: 0.9; text-shadow: 0 2px 4px rgba(0,0,0,0.5); }
+        .bottom-stats { color: white; text-align: center; width: 100%; text-shadow: 0 2px 4px rgba(0,0,0,0.8); padding-bottom: 20px; } 
+        
+        .city-title { font-weight: 900; line-height: 1.1; margin-bottom: 20px; text-transform: uppercase; font-size: 3.5rem; }
+        .stats-row { display: flex; justify-content: center; gap: 40px; border-top: 2px solid rgba(255,255,255,0.8); padding-top: 20px; margin: 0 auto; max-width: 90%; }
+        .stat-box { display: flex; flex-direction: column; align-items: center; }
+        .stat-num { font-size: 1.8rem; font-weight: 800; line-height: 1; text-shadow: none; color: var(--theme-light); }
+        .stat-label { font-size: 0.65rem; font-weight: 700; text-transform: uppercase; color: #fff; margin-top: 6px; letter-spacing: 1px; opacity: 0.9; }
+        .stat-sub { font-size: 0.65rem; font-weight: 500; color: #ddd; margin-top: 4px; font-style: italic; }
+
+        /* EXPORT STYLE */
+        body.exporting .overlay-ui { background: none !important; }
+        body.exporting .top-brand, body.exporting .bottom-stats { text-shadow: none !important; }
+        body.exporting path.leaflet-interactive { stroke-width: 1px !important; stroke: var(--theme-light) !important; stroke-opacity: 0.6 !important; }
+
+        /* --- BOUTON DOWNLOAD FLOTTANT --- */
+        .btn-mobile-fab {
+            display: none; /* Caché sur PC */
+            position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%);
+            background: var(--bordeaux); color: white; padding: 14px 28px;
+            border-radius: 50px; font-weight: 700; box-shadow: 0 5px 20px rgba(109, 7, 26, 0.4);
+            z-index: 40; border: none; align-items: center; gap: 8px; cursor: pointer;
+            width: max-content; transition: transform 0.2s;
+        }
+        .btn-mobile-fab:active { transform: translateX(-50%) scale(0.95); }
+
+        /* LOADER */
+        #loader { position: fixed; inset: 0; background: var(--off-white); display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 9999; }
+        .loader-content { display: flex; flex-direction: column; align-items: center; text-align: center; }
+        .loader-text { color: var(--bordeaux); font-weight: 700; margin-bottom: 20px; letter-spacing: 2px; text-transform: uppercase; }
+        .progress-bar { width: 220px; height: 4px; background: rgba(109, 7, 26, 0.1); border-radius: 10px; overflow: hidden; position: relative; }
+        .progress-fill { position: absolute; width: 40%; height: 100%; background: var(--bordeaux); animation: loading 1.8s infinite ease-in-out; }
+        @keyframes loading { 0% { left: -40%; } 100% { left: 100%; } }
+        .loader-signature { position: absolute; bottom: 30px; display: flex; align-items: center; gap: 8px; font-size: 0.75rem; color: var(--bordeaux); opacity: 0.6; text-decoration: none; font-weight: 600; transition: opacity 0.3s, transform 0.3s; }
+        .loader-signature:hover { opacity: 1; transform: translateY(-2px); }
+        .loader-icon { width: 14px; height: 14px; fill: currentColor; }
+
+        /* ========================================= */
+        /* ---        RESPONSIVE MOBILE          --- */
+        /* ========================================= */
+        @media (max-width: 900px) {
+            body { 
+                display: block; /* On casse le flexbox horizontal du PC */
+                height: 100vh; overflow: hidden; 
+            }
+
+            /* --- HEADER FIXE --- */
+            .mobile-header {
+                display: flex;
+                position: absolute; top: 0; left: 0; right: 0; height: 60px;
+                background: white; z-index: 50; padding: 0 20px;
+                align-items: center; justify-content: space-between;
+                box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            }
+            .mobile-title { 
+                font-weight: 800; color: var(--bordeaux); font-size: 1.1rem;
+                position: absolute; left: 50%; transform: translateX(-50%); white-space: nowrap;
+            }
+            .btn-toggle-settings {
+                background: #f0f2f5; border: none; padding: 8px 12px; border-radius: 8px;
+                color: #333; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 6px;
+            }
+            
+            /* Bouton retour DANS le header mobile */
+            .btn-header-back {
+                display: flex; align-items: center; justify-content: center;
+                color: #333; text-decoration: none;
+                width: 36px; height: 36px; border-radius: 50%;
+                background: #f0f2f5; margin-right: 10px;
+            }
+
+            /* --- SIDEBAR OVERLAY --- */
+            .sidebar {
+                position: fixed; inset: 0; width: 100%; height: 100%;
+                transform: translateX(100%); /* Caché à droite */
+                z-index: 200; box-shadow: none; border: none;
+                transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            }
+            .sidebar.active { transform: translateX(0); } /* Slide in */
+
+            /* Cacher le lien "Retour" du menu overlay puisqu'il est dans le header */
+            .sidebar .header-back { display: none; }
+
+            .btn-close-menu { display: flex; } /* AFFICHER LE BOUTON FERMER ICI */
+            .sidebar .btn-download { display: none; } /* Cacher le bouton PC */
+
+            /* --- PREVIEW AREA MOBILE --- */
+            .preview-area {
+                position: absolute;
+                top: 60px; /* Sous le header */
+                bottom: 0; left: 0; right: 0;
+                padding: 20px;
+                padding-bottom: 120px; /* PLACE POUR LE BOUTON FLOTTANT */
+                display: flex; align-items: center; justify-content: center;
+                overflow: hidden;
+            }
+
+            .btn-mobile-fab { display: flex; }
+
+            /* --- SCALE CARTE --- */
+            #story-card { transform: scale(0.7); }
+        }
+        
+        @media (max-width: 380px) {
+            #story-card { transform: scale(0.65); }
+        }
+        @media (max-height: 700px) {
+            #story-card { transform: scale(0.6); }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="loader">
+        <div class="loader-content">
+            <div class="loader-text">Génération du studio...</div>
+            <div class="progress-bar"><div class="progress-fill"></div></div>
+        </div>
+        <a href="https://www.linkedin.com/in/th%C3%A9ophile-s%C3%A9n%C3%A9chal-5119181a9/" target="_blank" class="loader-signature">
+            <svg class="loader-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 0h-14c-2.761 0-5 2.239-5 5v14c0 2.761 2.239 5 5 5h14c2.762 0 5-2.239 5-5v-14c0-2.761-2.238-5-5-5zm-11 19h-3v-11h3v11zm-1.5-12.268c-.966 0-1.75-.79-1.75-1.764s.784-1.764 1.75-1.764 1.75.79 1.75 1.764-.783 1.764-1.75 1.764zm13.5 12.268h-3v-5.604c0-3.368-4-3.113-4 0v5.604h-3v-11h3v1.765c1.396-2.586 7-2.777 7 2.476v6.759z"/></svg>
+            <span>Théophile Sénéchal</span>
+        </a>
+    </div>
+
+    <div class="mobile-header">
+        <a href="/" class="btn-header-back">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="19" y1="12" x2="5" y2="12"></line>
+                <polyline points="12 19 5 12 12 5"></polyline>
+            </svg>
+        </a>
+        
+        <div class="mobile-title">UNLOCK Studio</div>
+        
+        <button class="btn-toggle-settings" onclick="toggleSettings()">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 21v-7"/><path d="M4 10V3"/><path d="M12 21v-9"/><path d="M12 8V3"/><path d="M20 21v-5"/><path d="M20 12V3"/><path d="M1 14h6"/><path d="M9 8h6"/><path d="M17 16h6"/></svg>
+            Réglages
+        </button>
+    </div>
+
+    <div class="sidebar" id="settings-panel">
+        <a href="/" class="header-back">← Retour au menu principal</a>
+        
+        <button class="btn-close-menu" onclick="toggleSettings()">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"></circle>
+                <line x1="15" y1="9" x2="9" y2="15"></line>
+                <line x1="9" y1="9" x2="15" y2="15"></line>
+            </svg>
+            Fermer les réglages
+        </button>
+        
+        <h1>Studio Story</h1>
+        <p>Génère un calque transparent.</p>
+
+        <div class="control-group">
+            <label>1. Couleur</label>
+            <select id="color-selector" onchange="updateColors()">
+                <option value="red" selected>Rouge & Bordeaux</option>
+                <option value="blue">Bleu Néon & Marine</option>
+                <option value="green">Vert Flash & Forêt</option>
+            </select>
+        </div>
+
+        <div class="control-group">
+            <label>2. Taille de la grille</label>
+            <select id="grid-selector" onchange="loadData()">
+                <option value="100" selected>100m x 100m</option>
+                <option value="250">250m x 250m</option>
+            </select>
+        </div>
+
+        <div class="control-group">
+            <label>3. Choisir la ville</label>
+            <input type="text" id="city-input" list="city-list" placeholder="Rechercher..." onchange="onCitySelected()" autocomplete="off">
+            <datalist id="city-list"></datalist>
+        </div>
+
+        <button class="btn-download" onclick="downloadStory()">Télécharger l'image 📸</button>
+    </div>
+
+    <div class="preview-area">
+        <div id="story-card">
+            <div id="map"></div>
+            <div class="overlay-ui">
+                <div class="top-brand">UNLOCK</div>
+                <div class="bottom-stats">
+                    <div id="disp-city" class="city-title">...</div>
+                    <div class="stats-row">
+                        <div class="stat-box">
+                            <span id="disp-percent" class="stat-num">-</span>
+                            <span class="stat-label">Explorés</span>
+                        </div>
+                        <div class="stat-box">
+                            <span id="disp-blocks" class="stat-num">-</span>
+                            <span class="stat-label">Blocs</span>
+                            <span id="disp-grid-size" class="stat-sub">-</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <button class="btn-mobile-fab" onclick="downloadStory()">
+        <span>Télécharger</span>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+    </button>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        function toggleSettings() {
+            document.getElementById('settings-panel').classList.toggle('active');
+        }
+
+        const THEMES = {
+            red:   { light: '#ff4d4d', dark: '#8a0920' }, 
+            blue:  { light: '#4da6ff', dark: '#004080' }, 
+            green: { light: '#4dff88', dark: '#006622' }  
+        };
+
+        function isPointInPolygon(point, vs) {
+            var x = point[0], y = point[1];
+            var inside = false;
+            for (var i = 0, j = vs.length - 1; i < vs.length; j = i++) {
+                var xi = vs[i][0], yi = vs[i][1];
+                var xj = vs[j][0], yj = vs[j][1];
+                var intersect = ((yi > y) != (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
+                if (intersect) inside = !inside;
+            }
+            return inside;
+        }
+
+        L.Browser.any3d = false;
+
+        const map = L.map('map', { 
+            zoomControl: false, 
+            attributionControl: false,
+            interactive: true,
+            scrollWheelZoom: true,
+            dragging: true,
+            preferCanvas: true 
+        });
+        
+        const gridLayer = L.layerGroup().addTo(map);
+        const borderLayer = L.layerGroup().addTo(map);
+
+        let currentData = null;
+
+        async function loadData() {
+            const gridSize = document.getElementById('grid-selector').value;
+            const loader = document.getElementById('loader');
+            loader.style.display = 'flex';
+
+            try {
+                const response = await fetch(`/api/activities?year=all&grid_size=${gridSize}&sport_type=all`);
+                currentData = await response.json();
+                populateCityDatalist();
+                
+                if(currentData.top_municipalities.length > 0) {
+                     currentData.top_municipalities.sort((a,b) => b.stats.blocks - a.stats.blocks);
+                     const firstCity = currentData.top_municipalities[0];
+                     document.getElementById('city-input').value = firstCity.name;
+                     updatePreview(firstCity.name, true);
+                }
+            } catch (e) { console.error(e); } finally { loader.style.display = 'none'; }
+        }
+
+        function populateCityDatalist() {
+            const dataList = document.getElementById('city-list');
+            dataList.innerHTML = '';
+            if (currentData.top_municipalities) {
+                const sorted = [...currentData.top_municipalities].sort((a,b) => a.name.localeCompare(b.name));
+                sorted.forEach(city => {
+                    let opt = document.createElement('option');
+                    opt.value = city.name;
+                    dataList.appendChild(opt);
+                });
+            }
+        }
+
+        function onCitySelected() {
+            const name = document.getElementById('city-input').value;
+            updatePreview(name, true);
+            if(window.innerWidth < 900) {
+                toggleSettings();
+            }
+        }
+
+        function updateColors() {
+            const name = document.getElementById('city-input').value;
+            if(name) updatePreview(name, false);
+        }
+
+        function updatePreview(cityName, shouldCenter = true) {
+            if (!currentData || !currentData.top_municipalities) return;
+            const city = currentData.top_municipalities.find(c => c.name === cityName);
+            const gridSize = document.getElementById('grid-selector').value;
+            const themeKey = document.getElementById('color-selector').value;
+            const theme = THEMES[themeKey];
+
+            document.documentElement.style.setProperty('--theme-light', theme.light);
+            document.documentElement.style.setProperty('--theme-dark', theme.dark);
+
+            if (!city) return;
+
+            const cityTitleEl = document.getElementById('disp-city');
+            cityTitleEl.textContent = city.name;
+            
+            if (city.name.length > 15) cityTitleEl.style.fontSize = "2.2rem";
+            else if (city.name.length > 10) cityTitleEl.style.fontSize = "2.8rem";
+            else cityTitleEl.style.fontSize = "3.5rem";
+
+            document.getElementById('disp-percent').textContent = city.stats.percent + '%';
+            document.getElementById('disp-blocks').textContent = city.stats.blocks;
+            document.getElementById('disp-grid-size').textContent = `${gridSize}m / ${gridSize}m`;
+
+            gridLayer.clearLayers();
+            borderLayer.clearLayers();
+
+            let cityBounds = null;
+
+            if (city.outline) {
+                const poly = L.polygon(city.outline, { color: theme.dark, weight: 4, fill: false, opacity: 1 }).addTo(borderLayer);
+                cityBounds = poly.getBounds();
+                if (shouldCenter) {
+                    setTimeout(() => {
+                        map.fitBounds(cityBounds, { paddingTopLeft: [20, 20], paddingBottomRight: [20, 250], animate: true });
+                    }, 50);
+                }
+            }
+
+            if (currentData.grid_cells && city.outline) {
+                const size = currentData.grid_size_used;
+                const cellsInside = currentData.grid_cells.filter(cell => {
+                    const [lat, lon, count] = cell;
+                    return isPointInPolygon([lat, lon], city.outline);
+                });
+
+                const counts = cellsInside.map(c => c[2]);
+                const maxCount = counts.length > 0 ? Math.max(...counts) : 1;
+
+                cellsInside.forEach(cell => {
+                    const [lat, lon, count] = cell;
+                    const intensity = 0.6 + (Math.sqrt(count / maxCount) * 0.4); 
+                    const bounds = [[lat - size/2, lon - size/2], [lat + size/2, lon + size/2]];
+                    L.rectangle(bounds, { color: theme.light, weight: 0, fillOpacity: intensity }).addTo(gridLayer);
+                });
+            }
+        }
+
+        async function downloadStory() {
+            const card = document.getElementById('story-card');
+            const cityName = document.getElementById('city-input').value;
+            
+            document.body.classList.add('exporting');
+            card.style.backgroundColor = 'transparent';
+
+            window.scrollTo(0,0);
+            await new Promise(r => setTimeout(r, 100));
+
+            try {
+                const dataUrl = await domtoimage.toPng(card, {
+                    width: card.clientWidth * 2,
+                    height: card.clientHeight * 2,
+                    style: {
+                        transform: 'scale(2)', 
+                        transformOrigin: 'top left',
+                        width: card.clientWidth + 'px',
+                        height: card.clientHeight + 'px',
+                        backgroundColor: null 
+                    }
+                });
+
+                const link = document.createElement('a');
+                link.download = `Unlock_Story_${cityName}.png`;
+                link.href = dataUrl;
+                link.click();
+
+            } catch (err) {
+                console.error(err);
+                alert("Erreur lors de l'export.");
+            } finally {
+                card.style.backgroundColor = ''; 
+                document.body.classList.remove('exporting');
+            }
+        }
+
+        loadData();
+    </script>
+</body>
+</html>
