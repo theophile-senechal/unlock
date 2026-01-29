@@ -223,7 +223,7 @@
     <div class="controls" id="mobile-controls">
         <div class="switch-container">
             <button class="switch-btn active" onclick="setMode('route')" id="btn-route">TRACÉS</button>
-            <button class="switch-btn" onclick="setMode('grid')" id="btn-grid">CONQUÊTE</button>
+            <button class="switch-btn" onclick="setMode('grid')" id="btn-grid">BLOCS</button>
         </div>
         
         <select id="sport-select" onchange="updateDashboard()">
@@ -282,13 +282,13 @@
             <span id="distance" class="stat-value">0.0</span> <small style="font-weight: 700;">KM</small>
         </div>
         <div class="stat-card" id="card-cells" style="display: none;">
-            <span class="stat-label">Zones Conquises</span>
+            <span class="stat-label">Zones Explorées</span>
             <span id="cells" class="stat-value">0</span>
             <div id="equivalence-text" class="equivalence-text">Soit env. 0 terrains de football</div>
         </div>
         
         <div class="stat-card" id="card-muni" style="display: none; min-width: 260px;">
-            <span class="stat-label">Territoire Actif</span>
+            <span class="stat-label">Villes Explorées</span>
             
             <input type="text" id="city-search" list="city-suggestions" placeholder="Chercher une commune..." onchange="onCitySearch()">
             <datalist id="city-suggestions"></datalist>
@@ -466,8 +466,8 @@
         const infoBox = document.getElementById('city-info-box');
         infoBox.style.display = 'block';
         document.getElementById('muni-name').textContent = city.name;
-        document.getElementById('muni-percent').textContent = `${city.stats.percent}% conquis`;
-        document.getElementById('muni-details').textContent = `${city.stats.blocks} zones maîtrisées`;
+        document.getElementById('muni-percent').textContent = `${city.stats.percent}% découverts`;
+        document.getElementById('muni-details').textContent = `${city.stats.blocks} blocs explorés`;
 
         muniLayer.clearLayers();
         if (city.outline) {
