@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>UNLOCK | Time Lapse</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🏃</text></svg>">
+    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    
+    <style>
+        /* THÈME CLAIR */
+        :root { 
+            --bordeaux: #6d071a; 
+            --off-white: #fdfdfb; 
+            --bg-color: #f0f2f5; 
+            --text-color: #333; 
+            --panel-white: rgba(255, 255, 255, 0.95); 
+        }
+        
+        body { margin: 0; font-family: 'Inter', sans-serif; background: var(--bg-color); color: var(--text-color); height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+
+        /* HEADER FLOTTANT */
+        .header { 
+            padding: 20px 30px; display: flex; align-items: flex-start; justify-content: space-between; 
+            position: absolute; top: 0; width: 100%; z-index: 1000; box-sizing: border-box; 
+            pointer-events: none; /* Laisse passer les clics vers la carte */
+        }
+        .header > * { pointer-events: auto; } /* Réactive les boutons */
+
+        /* --- BOUTON RETOUR (DESIGN ADAPTATIF) --- */
+        .back-btn { 
+            background: var(--panel-white); color: #555; padding: 0 20px; 
+            border-radius: 30px; text-decoration: none; font-weight: 700; font-size: 0.9rem; 
+            box-shadow: 0 4px 15px rgba(0,0,0,0.08); transition: all 0.2s;
+            display: flex; align-items: center; gap: 8px; backdrop-filter: blur(5px);
+            height: 44px; /* Hauteur fixe */
+            border: 1px solid rgba(0,0,0,0.05);
+        }
+        .back-btn:hover { color: var(--bordeaux); transform: translateY(-1px); box-shadow: 0 6px 20px rgba(0,0,0,0.12); }
+        .back-btn svg { width: 20px; height: 20px; stroke-width: 2.5; }
+        
+        /* GROUPE DE CONTRÔLES */
+        .controls-top { 
+            display: flex; gap: 10px; background: var(--panel-white); padding: 5px; 
+            border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); backdrop-filter: blur(5px);
+        }
+        
+        select, input { 
+            background: #f9f9f9; border: 1px solid #eee; color: #333; padding: 0 12px; 
+            border-radius: 8px; outline: none; font-weight: 600; font-family: 'Inter', sans-serif;
+            font-size: 0.85rem; height: 34px; /* Hauteur uniforme */
+        }
+        select:focus, input:focus { border-color: var(--bordeaux); background: #fff; }
+
+        /* CARTE */
+        #map { width: 100%; height: 100%; z-index: 1; }
+        .leaflet-tile { filter: brightness(0.92) contrast(0.95); }
+
+        /* TIMELINE UI (BAS) */
+        .timeline-container {
+            position: absolute; bottom: 40px; left: 50%; transform: translateX(-50%); 
+            width: 90%; max-width: 850px; z-index: 1000;
+            display: flex; align-items: center; gap: 20px;
+            background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(10px);
+            padding: 15px 25px; border-radius: 20px; 
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            border: 1px solid rgba(255,255,255,0.5);
+            transition: all 0.3s ease;
+        }
+
+        .play-btn {
+            background: var(--bordeaux); color: white; border: none; width: 45px; height: 45px; border-radius: 50%;
+            cursor: pointer; display: flex; align-items: center; justify-content: center;
+            transition: transform 0.2s, box-shadow 0.2s; flex-shrink: 0;
+            box-shadow: 0 4px 10px rgba(109, 7, 26, 0.3);
+        }
+        .play-btn:hover { transform: scale(1.05); }
+
+        .slider-wrapper { flex-grow: 1; display: flex; flex-direction: column; justify-content: center; }
+        input[type=range] { width: 100%; cursor: pointer; accent-color: var(--bordeaux); height: 5px; background: #eee; border-radius: 3px; }
+
+        .date-display {
+            display: flex; flex-direction: column; align-items: flex-end; min-width: 80px; text-align: right;
+            border-left: 1px solid #eee; padding-left: 15px;
+        }
+        .date-month { font-size: 1.1rem; font-weight: 800; line-height: 1; color: var(--bordeaux); text-transform: uppercase; }
+        .date-year { font-size: 0.8rem; font-weight: 600; color: #999; margin-top: 2px; }
+
+        /* LOADER */
+        #loader { position: fixed; inset: 0; background: var(--off-white); display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 9999; }
+        .loader-content { display: flex; flex-direction: column; align-items: center; text-align: center; }
+        .loader-text { color: var(--bordeaux); font-weight: 700; margin-bottom: 20px; letter-spacing: 2px; text-transform: uppercase; }
+        .progress-bar { width: 220px; height: 4px; background: rgba(109, 7, 26, 0.1); border-radius: 10px; overflow: hidden; position: relative; }
+        .progress-fill { position: absolute; width: 40%; height: 100%; background: var(--bordeaux); animation: loading 1.8s infinite ease-in-out; }
+        @keyframes loading { 0% { left: -40%; } 100% { left: 100%; } }
+        .loader-signature { position: absolute; bottom: 30px; display: flex; align-items: center; gap: 8px; font-size: 0.75rem; color: var(--bordeaux); opacity: 0.6; text-decoration: none; font-weight: 600; transition: opacity 0.3s, transform 0.3s; }
+        .loader-signature:hover { opacity: 1; transform: translateY(-2px); }
+        .loader-icon { width: 14px; height: 14px; fill: currentColor; }
+
+        /* ========================================= */
+        /* ---        DESIGN MOBILE (Sleek)      --- */
+        /* ========================================= */
+        @media (max-width: 768px) {
+            .header { padding: 15px; }
+
+            /* 1. BOUTON RETOUR -> CERCLE ICONE */
+            .back-btn {
+                width: 42px; height: 42px; /* Carré */
+                border-radius: 50%; /* Cercle */
+                padding: 0; justify-content: center; /* Centrer icone */
+                background: white; /* Fond bien blanc */
+            }
+            .back-btn span { display: none; } /* Cacher texte */
+            .back-btn svg { margin: 0; }
+
+            /* 2. FILTRES COMPACTS & ALIGNÉS */
+            .controls-top {
+                background: none; box-shadow: none; padding: 0;
+                display: flex; flex-direction: column; align-items: flex-end; gap: 8px;
+            }
+            
+            /* Style des selects sur mobile pour être discrets */
+            select, input {
+                background: rgba(255, 255, 255, 0.95);
+                backdrop-filter: blur(4px);
+                border: 1px solid rgba(0,0,0,0.1);
+                box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+                font-size: 0.75rem;
+                height: 32px;
+                width: auto; /* Largeur auto selon contenu */
+                max-width: 140px;
+            }
+
+            /* 3. TIMELINE MOBILE */
+            .timeline-container {
+                width: 90%; bottom: 25px;
+                padding: 10px 15px; gap: 10px;
+                flex-wrap: nowrap; /* Garder sur une ligne */
+            }
+            .play-btn { width: 40px; height: 40px; }
+            .date-display { padding-left: 10px; min-width: auto; }
+            .date-month { font-size: 0.9rem; }
+            .date-year { font-size: 0.7rem; }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="loader">
+        <div class="loader-content">
+            <div class="loader-text">Chargement de l'historique...</div>
+            <div class="progress-bar"><div class="progress-fill"></div></div>
+        </div>
+        
+        <a href="https://www.linkedin.com/in/th%C3%A9ophile-s%C3%A9n%C3%A9chal-5119181a9/" target="_blank" class="loader-signature">
+            <svg class="loader-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+                <path d="M19 0h-14c-2.761 0-5 2.239-5 5v14c0 2.761 2.239 5 5 5h14c2.762 0 5-2.239 5-5v-14c0-2.761-2.238-5-5-5zm-11 19h-3v-11h3v11zm-1.5-12.268c-.966 0-1.75-.79-1.75-1.764s.784-1.764 1.75-1.764 1.75.79 1.75 1.764-.783 1.764-1.75 1.764zm13.5 12.268h-3v-5.604c0-3.368-4-3.113-4 0v5.604h-3v-11h3v1.765c1.396-2.586 7-2.777 7 2.476v6.759z"/>
+            </svg>
+            <span>Théophile Sénéchal</span>
+        </a>
+    </div>
+
+    <div class="header">
+        <a href="/" class="back-btn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="19" y1="12" x2="5" y2="12"></line>
+                <polyline points="12 19 5 12 12 5"></polyline>
+            </svg>
+            <span>Retour</span>
+        </a>
+        
+        <div class="controls-top">
+            <select id="speed-selector" onchange="changeSpeed()">
+                <option value="600">Vitesse : Lente</option>
+                <option value="300" selected>Vitesse : Normale</option>
+                <option value="100">Vitesse : Rapide</option>
+            </select>
+
+            <select id="grid-selector" onchange="loadData()">
+                <option value="100">Grille : 100m</option>
+                <option value="250" selected>Grille : 250m</option>
+            </select>
+            
+            <input type="text" id="city-input" list="city-list" placeholder="🔍 Ville..." onchange="focusCity()" autocomplete="off">
+            <datalist id="city-list"></datalist>
+        </div>
+    </div>
+
+    <div id="map"></div>
+
+    <div class="timeline-container">
+        <button class="play-btn" onclick="togglePlay()" id="btn-play">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+        </button>
+        
+        <div class="slider-wrapper">
+            <input type="range" id="time-slider" min="0" max="100" value="0" step="1" oninput="updateTimeFromSlider()">
+        </div>
+
+        <div class="date-display">
+            <span id="disp-month" class="date-month">---</span>
+            <span id="disp-year" class="date-year">----</span>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        const map = L.map('map', { 
+            zoomControl: false, 
+            attributionControl: false,
+            preferCanvas: true 
+        }).setView([46.603354, 1.888334], 6);
+
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { maxZoom: 19 }).addTo(map);
+        
+        const gridLayer = L.layerGroup().addTo(map);
+        const borderLayer = L.layerGroup().addTo(map);
+
+        let currentData = null;
+        let allMonths = [];
+        let isPlaying = false;
+        let playInterval = null;
+        let currentCityOutline = null;
+        let currentSpeed = 300; 
+        
+        async function loadData() {
+            const gridSize = document.getElementById('grid-selector').value;
+            const loader = document.getElementById('loader');
+            loader.style.display = 'flex';
+            
+            try {
+                const res = await fetch(`/api/activities?year=all&grid_size=${gridSize}&sport_type=all`);
+                currentData = await res.json();
+                processDates();
+                populateCities();
+                if (allMonths.length > 0) setSliderTo(allMonths.length - 1);
+                loader.style.display = 'none';
+            } catch(e) { 
+                console.error(e); 
+                loader.style.display = 'none';
+            }
+        }
+
+        function processDates() {
+            if (!currentData.grid_cells) return;
+            const dates = new Set();
+            currentData.grid_cells.forEach(c => { if(c[3]) dates.add(c[3]); });
+            allMonths = Array.from(dates).sort();
+            const slider = document.getElementById('time-slider');
+            slider.max = allMonths.length - 1;
+            slider.value = allMonths.length - 1;
+        }
+
+        function populateCities() {
+            const list = document.getElementById('city-list');
+            list.innerHTML = '';
+            if (currentData.top_municipalities) {
+                currentData.top_municipalities.sort((a,b) => b.stats.blocks - a.stats.blocks).forEach(c => {
+                    let opt = document.createElement('option');
+                    opt.value = c.name;
+                    list.appendChild(opt);
+                });
+            }
+        }
+
+        function render(maxIndex) {
+            const limitDate = allMonths[maxIndex];
+            if (!limitDate) return;
+
+            const [y, m] = limitDate.split('-');
+            const dateObj = new Date(parseInt(y), parseInt(m)-1);
+            const monthName = dateObj.toLocaleString('fr-FR', { month: 'short' }).toUpperCase();
+            
+            document.getElementById('disp-month').textContent = monthName;
+            document.getElementById('disp-year').textContent = y;
+
+            gridLayer.clearLayers();
+
+            // --- LISSAGE VISUEL (EXTRAPOLATION) ---
+            const SMOOTHING_FACTOR = 1.1; // 10% de débordement pour boucher les trous
+
+            currentData.grid_cells.forEach(cell => {
+                const [lat, lon, count, firstSeen] = cell;
+                
+                if (firstSeen <= limitDate) {
+                    if (currentCityOutline && !isPointInPolygon([lat, lon], currentCityOutline)) return;
+
+                    const size = currentData.grid_size_used * SMOOTHING_FACTOR;
+                    const bounds = [[lat - size/2, lon - size/2], [lat + size/2, lon + size/2]];
+                    
+                    L.rectangle(bounds, { 
+                        color: "#6d071a", // Même couleur que le fond
+                        weight: 1,        // Contour de 1px pour lier visuellement
+                        opacity: 1, 
+                        fillOpacity: 0.8,
+                        interactive: false // Optimisation performance
+                    }).addTo(gridLayer);
+                }
+            });
+        }
+
+        function isPointInPolygon(point, vs) {
+            var x = point[0], y = point[1];
+            var inside = false;
+            for (var i = 0, j = vs.length - 1; i < vs.length; j = i++) {
+                var xi = vs[i][0], yi = vs[i][1];
+                var xj = vs[j][0], yj = vs[j][1];
+                var intersect = ((yi > y) != (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
+                if (intersect) inside = !inside;
+            }
+            return inside;
+        }
+
+        function focusCity() {
+            const name = document.getElementById('city-input').value;
+            const city = currentData.top_municipalities.find(c => c.name === name);
+            
+            borderLayer.clearLayers();
+            currentCityOutline = null;
+
+            if (city && city.outline) {
+                currentCityOutline = city.outline;
+                const poly = L.polygon(city.outline, { color: '#333', weight: 2, fill: false }).addTo(borderLayer);
+                map.fitBounds(poly.getBounds(), { padding: [50, 50] });
+            }
+            render(document.getElementById('time-slider').value);
+        }
+
+        function updateTimeFromSlider() {
+            const val = parseInt(document.getElementById('time-slider').value);
+            render(val);
+        }
+
+        function setSliderTo(val) {
+            document.getElementById('time-slider').value = val;
+            render(val);
+        }
+
+        function changeSpeed() {
+            currentSpeed = parseInt(document.getElementById('speed-selector').value);
+            if (isPlaying) {
+                clearInterval(playInterval);
+                playInterval = setInterval(nextStep, currentSpeed);
+            }
+        }
+
+        function nextStep() {
+            const slider = document.getElementById('time-slider');
+            let val = parseInt(slider.value);
+            if (val < parseInt(slider.max)) {
+                slider.value = val + 1;
+                render(val + 1);
+            } else {
+                togglePlay(); 
+            }
+        }
+
+        function togglePlay() {
+            const btn = document.getElementById('btn-play');
+            const slider = document.getElementById('time-slider');
+            
+            if (isPlaying) {
+                clearInterval(playInterval);
+                isPlaying = false;
+                btn.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>';
+            } else {
+                if (parseInt(slider.value) >= parseInt(slider.max)) slider.value = 0;
+                
+                isPlaying = true;
+                btn.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" stroke="none"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>';
+                
+                playInterval = setInterval(nextStep, currentSpeed);
+            }
+        }
+
+        loadData();
+    </script>
+</body>
+</html>

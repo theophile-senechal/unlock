@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>UNLOCK | Analytics</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📊</text></svg>">
+    
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <style>
+        :root { --bordeaux: #6d071a; --green: #4caf50; --off-white: #fdfdfb; --bg: #f8f9fa; --card-bg: #ffffff; }
+        
+        body { margin: 0; font-family: 'Inter', sans-serif; background: var(--bg); color: #333; padding-bottom: 50px; }
+
+        .header { 
+            background: #fff; padding: 15px 30px; 
+            display: flex; justify-content: space-between; align-items: center; 
+            border-bottom: 1px solid #eee;
+        }
+        .header h1 { margin: 0; font-size: 1.4rem; color: var(--bordeaux); letter-spacing: -0.5px; }
+        
+        .back-btn { text-decoration: none; color: #666; font-weight: 600; font-size: 0.9rem; background: #f0f0f0; padding: 8px 16px; border-radius: 20px; transition: 0.2s; white-space: nowrap; }
+        .back-btn:hover { background: #e0e0e0; color: #333; }
+
+        .filter-bar {
+            background: #fff; padding: 10px 30px;
+            display: flex; gap: 15px; align-items: center; flex-wrap: wrap;
+            border-bottom: 1px solid #eee;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.03);
+            position: sticky; top: 0; z-index: 90;
+        }
+        
+        .filter-group { display: flex; align-items: center; gap: 8px; }
+        .filter-label { font-size: 0.75rem; font-weight: 700; color: #888; text-transform: uppercase; white-space: nowrap; }
+
+        select { 
+            padding: 8px 12px; border-radius: 8px; border: 1px solid #ddd; background: #f9f9f9; 
+            font-weight: 600; color: #333; outline: none; font-size: 0.85rem; cursor: pointer; 
+            transition: border-color 0.2s; min-width: 120px;
+        }
+        select:hover { border-color: #bbb; }
+        select:focus { border-color: var(--bordeaux); background: #fff; }
+
+        .container { max-width: 1000px; margin: 30px auto; padding: 0 20px; }
+
+        .kpi-row { display: flex; gap: 20px; margin-bottom: 30px; }
+        .kpi-card { flex: 1; background: var(--card-bg); padding: 20px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.03); text-align: center; }
+        .kpi-val { font-size: 2rem; font-weight: 800; color: var(--bordeaux); display: block; }
+        .kpi-label { font-size: 0.8rem; font-weight: 600; color: #888; text-transform: uppercase; letter-spacing: 1px; }
+
+        .chart-card { background: var(--card-bg); padding: 20px; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.05); margin-bottom: 20px; }
+        .chart-title { font-size: 1.1rem; font-weight: 700; margin-bottom: 15px; color: #444; display: flex; align-items: center; gap: 8px; }
+        
+        .chart-container { position: relative; height: 250px; width: 100%; }
+        
+        /* --- LOADER --- */
+        #loader { position: fixed; inset: 0; background: var(--off-white); display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 9999; }
+        .loader-content { display: flex; flex-direction: column; align-items: center; text-align: center; }
+        .loader-text { color: var(--bordeaux); font-weight: 700; margin-bottom: 20px; letter-spacing: 2px; text-transform: uppercase; }
+        .progress-bar { width: 220px; height: 4px; background: rgba(109, 7, 26, 0.1); border-radius: 10px; overflow: hidden; position: relative; }
+        .progress-fill { position: absolute; width: 40%; height: 100%; background: var(--bordeaux); animation: loading 1.8s infinite ease-in-out; }
+        @keyframes loading { 0% { left: -40%; } 100% { left: 100%; } }
+        .loader-signature { position: absolute; bottom: 30px; display: flex; align-items: center; gap: 8px; font-size: 0.75rem; color: var(--bordeaux); opacity: 0.6; text-decoration: none; font-weight: 600; transition: opacity 0.3s, transform 0.3s; }
+        .loader-signature:hover { opacity: 1; transform: translateY(-2px); }
+        .loader-icon { width: 14px; height: 14px; fill: currentColor; }
+
+        /* ========================================= */
+        /* ---        RESPONSIVE MOBILE          --- */
+        /* ========================================= */
+        @media (max-width: 768px) {
+            /* Header plus compact */
+            .header { padding: 15px; }
+            .header h1 { font-size: 1.2rem; }
+            .back-btn { font-size: 0.8rem; padding: 6px 12px; }
+
+            /* Filtres en colonne pour être utilisables */
+            .filter-bar {
+                padding: 15px;
+                flex-direction: column;
+                align-items: stretch; /* Prend toute la largeur */
+                gap: 10px;
+                position: relative; /* On enlève le sticky pour pas manger l'écran */
+            }
+            .filter-group {
+                justify-content: space-between; /* Label à gauche, Select à droite */
+                width: 100%;
+            }
+            select { flex-grow: 1; max-width: 60%; }
+
+            /* Conteneur principal */
+            .container { margin: 20px auto; padding: 0 15px; }
+
+            /* KPI empilés */
+            .kpi-row {
+                flex-direction: column;
+                gap: 10px;
+                margin-bottom: 20px;
+            }
+            .kpi-card { padding: 15px; }
+            .kpi-val { font-size: 1.8rem; }
+
+            /* Graphiques */
+            .chart-card { padding: 15px; margin-bottom: 15px; }
+            .chart-container { height: 220px; } /* Un peu moins haut */
+        }
+    </style>
+</head>
+<body>
+
+    <div id="loader">
+        <div class="loader-content">
+            <div class="loader-text">Calcul des statistiques...</div>
+            <div class="progress-bar"><div class="progress-fill"></div></div>
+        </div>
+        
+        <a href="https://www.linkedin.com/in/th%C3%A9ophile-s%C3%A9n%C3%A9chal-5119181a9/" target="_blank" class="loader-signature">
+            <svg class="loader-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+                <path d="M19 0h-14c-2.761 0-5 2.239-5 5v14c0 2.761 2.239 5 5 5h14c2.762 0 5-2.239 5-5v-14c0-2.761-2.238-5-5-5zm-11 19h-3v-11h3v11zm-1.5-12.268c-.966 0-1.75-.79-1.75-1.764s.784-1.764 1.75-1.764 1.75.79 1.75 1.764-.783 1.764-1.75 1.764zm13.5 12.268h-3v-5.604c0-3.368-4-3.113-4 0v5.604h-3v-11h3v1.765c1.396-2.586 7-2.777 7 2.476v6.759z"/>
+            </svg>
+            <span>Théophile Sénéchal</span>
+        </a>
+    </div>
+
+    <div class="header">
+        <h1>UNLOCK Analytics</h1>
+        <a href="/" class="back-btn">← Retour Carte</a>
+    </div>
+
+    <div class="filter-bar">
+        <div class="filter-group">
+            <span class="filter-label">Taille des blocs</span>
+            <select id="grid-select" onchange="loadStats()">
+                <option value="100">100m / 100m</option>
+                <option value="250">250m / 250m</option>
+            </select>
+        </div>
+
+        <div class="filter-group">
+            <span class="filter-label">Année</span>
+            <select id="year-select" onchange="loadStats()">
+                <option value="all">Historique Complet</option>
+            </select>
+        </div>
+
+        <div class="filter-group">
+            <span class="filter-label">Sport</span>
+            <select id="sport-select" onchange="loadStats()">
+                <option value="all">Tous sports GPS</option>
+            </select>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="kpi-row">
+            <div class="kpi-card">
+                <span class="kpi-val" id="kpi-total">-</span>
+                <span class="kpi-label">Blocs Explorés</span>
+            </div>
+            <div class="kpi-card">
+                <span class="kpi-val" id="kpi-growth">-</span>
+                <span class="kpi-label">Moyenne / Mois</span>
+            </div>
+        </div>
+
+        <div class="chart-card">
+            <div class="chart-title">📈 Courbe de découverte</div>
+            <div class="chart-container">
+                <canvas id="conquestChart"></canvas>
+            </div>
+        </div>
+
+        <div class="chart-card">
+            <div class="chart-title">📊 Exploration vs Routine</div>
+            <div class="chart-container">
+                <canvas id="ratioChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let chartConquest = null;
+        let chartRatio = null;
+        let filtersLoaded = false;
+
+        const SPORT_TRANSLATIONS = {
+            'Run': 'Course à pied',
+            'Ride': 'Vélo',
+            'Swim': 'Natation',
+            'Hike': 'Randonnée',
+            'Walk': 'Marche',
+            'AlpineSki': 'Ski Alpin',
+            'BackcountrySki': 'Ski de Rando',
+            'WeightTraining': 'Musculation',
+            'Workout': 'Entraînement',
+            'VirtualRide': 'Vélo Virtuel',
+            'VirtualRun': 'Course Virtuelle',
+            'GravelRide': 'Gravel',
+            'TrailRun': 'Trail',
+            'E-BikeRide': 'Vélo Électrique',
+            'Velomobile': 'Vélomobile',
+            'NordicSki': 'Ski de Fond',
+            'Snowshoe': 'Raquettes'
+        };
+
+        async function loadStats() {
+            const loader = document.getElementById('loader');
+            loader.style.display = 'flex';
+
+            const gridSize = document.getElementById('grid-select').value;
+            const year = document.getElementById('year-select').value;
+            const sport = document.getElementById('sport-select').value;
+
+            try {
+                const res = await fetch(`/api/stats_history?grid_size=${gridSize}&year=${year}&sport_type=${sport}`);
+                const data = await res.json();
+
+                if (!filtersLoaded || year === 'all' && sport === 'all') {
+                    populateSelect('year-select', data.available_years, year, "Historique Complet");
+                    populateSelect('sport-select', data.available_sports, sport, "Tous sports GPS", true);
+                    filtersLoaded = true;
+                }
+
+                document.getElementById('kpi-total').textContent = data.total_blocks.toLocaleString();
+                const avg = data.labels.length > 0 ? Math.round(data.total_blocks / data.labels.length) : 0;
+                document.getElementById('kpi-growth').textContent = `+${avg}`;
+
+                if (chartConquest) chartConquest.destroy();
+                if (chartRatio) chartRatio.destroy();
+
+                const ctxConquest = document.getElementById('conquestChart').getContext('2d');
+                chartConquest = new Chart(ctxConquest, {
+                    type: 'line',
+                    data: {
+                        labels: data.labels,
+                        datasets: [{
+                            label: 'Territoire (Blocs)',
+                            data: data.conquest,
+                            borderColor: '#6d071a',
+                            backgroundColor: 'rgba(109, 7, 26, 0.05)',
+                            borderWidth: 3,
+                            fill: true,
+                            tension: 0.3,
+                            pointRadius: 0,
+                            pointHitRadius: 10
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: { legend: { display: false }, tooltip: { mode: 'index', intersect: false } },
+                        scales: { y: { beginAtZero: true, grid: { color: '#f0f0f0' } }, x: { grid: { display: false } } }
+                    }
+                });
+
+                const ctxRatio = document.getElementById('ratioChart').getContext('2d');
+                chartRatio = new Chart(ctxRatio, {
+                    type: 'bar',
+                    data: {
+                        labels: data.labels,
+                        datasets: [
+                            {
+                                label: 'Exploration',
+                                data: data.exploration,
+                                backgroundColor: '#4caf50',
+                                borderRadius: 4
+                            },
+                            {
+                                label: 'Routine',
+                                data: data.routine,
+                                backgroundColor: '#6d071a',
+                                borderRadius: 4
+                            }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: { tooltip: { mode: 'index', intersect: false } },
+                        scales: {
+                            x: { stacked: true, grid: { display: false } },
+                            y: { stacked: true, grid: { color: '#f0f0f0' } }
+                        }
+                    }
+                });
+
+            } catch (e) {
+                console.error(e);
+                alert("Erreur chargement stats");
+            } finally {
+                loader.style.display = 'none';
+            }
+        }
+
+        function populateSelect(id, items, currentValue, defaultText, translate = false) {
+            const select = document.getElementById(id);
+            const savedValue = select.value;
+            select.innerHTML = `<option value="all">${defaultText}</option>`;
+            
+            items.forEach(item => {
+                const opt = document.createElement('option');
+                opt.value = item;
+                if (translate && SPORT_TRANSLATIONS[item]) {
+                    opt.textContent = SPORT_TRANSLATIONS[item].toUpperCase();
+                } else {
+                    opt.textContent = item;
+                }
+                select.appendChild(opt);
+            });
+
+            if (currentValue && currentValue !== 'all') {
+                select.value = currentValue;
+            } else if (savedValue && savedValue !== 'all') {
+                 let exists = false;
+                 for (let i = 0; i < select.options.length; i++) {
+                     if (select.options[i].value === savedValue) exists = true;
+                 }
+                 if (exists) select.value = savedValue;
+            } else {
+                select.value = 'all';
+            }
+        }
+
+        loadStats();
+    </script>
+</body>
+</html>
