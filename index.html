@@ -233,8 +233,6 @@
         <select id="grid-size-select" onchange="updateDashboard()" style="display:none;">
             <option value="100">100M / 100M</option>
             <option value="250">250M / 250M</option>
-            <option value="500">500M / 500M</option>
-            <option value="1000">1KM / 1KM</option>
         </select>
         <select id="year-select" onchange="updateDashboard()"><option value="all">HISTORIQUE</option></select>
         
@@ -432,9 +430,19 @@
 
             const dataList = document.getElementById('city-suggestions');
             dataList.innerHTML = '';
+            
             if (currentData.top_municipalities) {
-                const sortedAlpha = [...currentData.top_municipalities].sort((a, b) => a.name.localeCompare(b.name));
-                sortedAlpha.forEach(city => {
+                // MODIFICATION : On ne garde que le TOP 20 pour la recherche
+                // 1. On trie par nombre de blocs pour avoir les "vraies" meilleures villes
+                // 2. On garde les 20 premières
+                const top20 = [...currentData.top_municipalities]
+                    .sort((a, b) => b.stats.blocks - a.stats.blocks)
+                    .slice(0, 20);
+
+                // 3. On trie ces 20 villes par ordre alphabétique pour l'affichage dans la liste
+                const top20SortedAlpha = top20.sort((a, b) => a.name.localeCompare(b.name));
+
+                top20SortedAlpha.forEach(city => {
                     let option = document.createElement('option');
                     option.value = city.name;
                     dataList.appendChild(option);
@@ -454,6 +462,7 @@
     function onCitySearch() {
         const inputVal = document.getElementById('city-search').value;
         if (!currentData || !currentData.top_municipalities) return;
+        // On cherche dans toutes les municipalités renvoyées par l'API (même hors top 20 si le user tape le nom exact d'une ville qui était dans le json mais pas dans la liste top 20, bien que le json soit limité par le backend)
         const city = currentData.top_municipalities.find(c => c.name.toLowerCase() === inputVal.toLowerCase());
         if (city) {
             currentSelectedCityName = city.name;
@@ -490,6 +499,7 @@
         if (currentSort === 'blocks') { sortedCities.sort((a, b) => b.stats.blocks - a.stats.blocks); } 
         else { sortedCities.sort((a, b) => b.stats.percent - a.stats.percent); }
 
+        // LE TABLEAU RESTE LIMITÉ AU TOP 5
         sortedCities.slice(0, 5).forEach((city, index) => {
             const row = document.createElement('tr');
             const activeStyle = 'color: var(--bordeaux); font-weight: 800; font-size: 0.9rem;';
